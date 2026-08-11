@@ -1,11 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { GoogleAnalytics } from '@next/third-parties/google';
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Bihari Auto Beats",
   description: "Bihari Swag on Wheels - The ultimate auto-rickshaw music experience",
   manifest: "/manifest.json",
-  themeColor: "#000000",
   keywords: [
     "Bihari Auto Beats",
     "Bhojpuri music",
@@ -18,6 +18,10 @@ export const metadata: Metadata = {
     description: "Bihari Swag on Wheels - The ultimate auto-rickshaw music experience",
     type: "website",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#000000",
 };
 
 export default function RootLayout({
@@ -37,6 +41,8 @@ export default function RootLayout({
       </head>
       <body className="antialiased bg-black text-white selection:bg-saffron-500/30">
         {children}
+        {/* Google Analytics for tracking users and sessions */}
+        <GoogleAnalytics gaId="G-MJPXYYWSYJ" />
       </body>
     </html>
   );
