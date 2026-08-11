@@ -102,25 +102,6 @@ export default function YouTubePlayer() {
         }
     }, [isPlaying, isReady, setProgress]);
 
-    // Force play on any user interaction (workaround for strict browser autoplay policies)
-    useEffect(() => {
-        const handleInteraction = () => {
-            if (isReady && playerRef.current && isPlaying) {
-                playerRef.current.playVideo();
-            }
-        };
-
-        window.addEventListener('click', handleInteraction);
-        window.addEventListener('touchstart', handleInteraction);
-        window.addEventListener('keydown', handleInteraction);
-
-        return () => {
-            window.removeEventListener('click', handleInteraction);
-            window.removeEventListener('touchstart', handleInteraction);
-            window.removeEventListener('keydown', handleInteraction);
-        };
-    }, [isReady, isPlaying]);
-
     // Handle volume
     useEffect(() => {
         if (isReady && playerRef.current && playerRef.current.setVolume) {

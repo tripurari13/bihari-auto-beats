@@ -46,7 +46,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             currentSong: initialSongs[0],
             queue: initialSongs.slice(1, 11),
             allSongs: initialSongs,
-            isPlaying: true, // Autoplay immediately
+            isPlaying: false, // Disabled autoplay
             progress: 0,
             volume: 80,
             isShuffle: false,
@@ -72,7 +72,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                         }
                         const randomSong = realSongs[0];
                         const newQueue = realSongs.slice(1, 11); // Next 10 songs
-                        setState((s) => ({ ...s, currentSong: randomSong, queue: newQueue, allSongs: realSongs, isPlaying: true }));
+                        setState((s) => ({ ...s, currentSong: randomSong, queue: newQueue, allSongs: realSongs, isPlaying: false }));
                     }
                 }
             } catch (error) {
