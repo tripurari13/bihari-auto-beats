@@ -1,69 +1,101 @@
-import Image from "next/image";
+"use client";
+import { useState, useEffect } from "react";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { PlayerProvider, usePlayer } from "@/components/PlayerContext";
+import TopBar from "@/components/Navbar";
+import Player from "@/components/Player";
+import AutoMode from "@/components/AutoMode";
+import AddSongModal from "@/components/AddSongModal";
+import SearchOverlay from "@/components/SearchOverlay";
+import SideMenu from "@/components/SideMenu";
+import YouTubePlayer from "@/components/YouTubePlayer";
+import { HINDI_QUOTES } from "@/lib/mockData";
+
+function HomeContent() {
+  const [showAddSong, setShowAddSong] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  const { isAutoMode, toggleAutoMode } = usePlayer();
+
+  // Rotate Hindi quotes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setQuoteIndex((i) => (i + 1) % HINDI_QUOTES.length);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <>
+      {/* Fixed Background */}
+      <div className="bg-fixed-cover" />
+
+      {/* Auto Mode Overlay */}
+      {isAutoMode && <AutoMode />}
+
+      {/* Top Bar */}
+      <TopBar
+        onAddSong={() => setShowAddSong(true)}
+        onSearch={() => setShowSearch(true)}
+        onMenuToggle={() => setShowMenu(true)}
+      />
+
+      {/* Side Menu */}
+      <SideMenu isOpen={showMenu} onClose={() => setShowMenu(false)} />
+
+      {/* Main Content - Completely Empty & Sleek */}
+      <main className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6 pb-24">
+        {/* Branding */}
+        <div className="text-center mb-12 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+          <h1
+            className="font-heading text-4xl sm:text-6xl md:text-8xl font-black text-white text-center leading-tight tracking-tight drop-shadow-2xl flex items-center justify-center gap-2 sm:gap-4"
+            style={{ textShadow: '0 4px 40px rgba(0,0,0,0.6)' }}
+          >
+            <span style={{ fontFamily: "'Tiro Devanagari Hindi', serif" }}>
+              बिहारी ऑटो बीट्स
+            </span>
+          </h1>
+          <p className="text-white/60 mt-4 text-base sm:text-lg md:text-xl font-medium tracking-wide uppercase letter-spacing-2">
+            Bihari Swag on Wheels
+          </p>
+        </div>
+
+        {/* Rotating Hindi Quote */}
+        <p
+          key={quoteIndex}
+          className="text-white/70 text-lg md:text-xl mt-6 text-center animate-fade-in font-medium"
+          style={{ fontFamily: "'Tiro Devanagari Hindi', serif", textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}
+        >
+          {HINDI_QUOTES[quoteIndex]}
+        </p>
+
+        {/* Auto Mode shortcut */}
+        <button
+          onClick={toggleAutoMode}
+          className="glass-pill px-5 py-2.5 mt-10 text-sm font-heading font-semibold text-white/50 hover:text-white transition-colors"
+        >
+          🛺 Auto Mode
+        </button>
+      </main>
+
+      {/* Bottom Player */}
+      <YouTubePlayer />
+      <Player />
+
+      {/* Modals */}
+      <AddSongModal isOpen={showAddSong} onClose={() => setShowAddSong(false)} />
+      <SearchOverlay isOpen={showSearch} onClose={() => setShowSearch(false)} />
+    </>
+  );
+}
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <ThemeProvider>
+      <PlayerProvider>
+        <HomeContent />
+      </PlayerProvider>
+    </ThemeProvider>
   );
 }
