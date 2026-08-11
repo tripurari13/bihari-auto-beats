@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect } from "react";
-import { CURRENT_LISTENERS } from "@/lib/mockData";
 
 interface TopBarProps {
     onAddSong: () => void;
@@ -9,19 +8,39 @@ interface TopBarProps {
 }
 
 export default function TopBar({ onAddSong, onSearch, onMenuToggle }: TopBarProps) {
-    const [listeners, setListeners] = useState(CURRENT_LISTENERS);
+    const [listeners, setListeners] = useState<number | null>(null);
 
     useEffect(() => {
-        const interval = setInterval(() => {
-            setListeners((prev) => {
-                const change = Math.floor(Math.random() * 7) - 3;
-                let next = prev + change;
-                if (next < 200) next = 200;
-                if (next > 500) next = 500;
-                return next;
-            });
-        }, 5000);
-        return () => clearInterval(interval);
+        let eventSource: EventSource | null = null;
+        let retryTimeout: ReturnType<typeof setTimeout>;
+
+        function connect() {
+            eventSource = new EventSource("/api/presence");
+
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (typeof data.count === "number") {
+                        setListeners(data.count);
+                    }
+                } catch {
+                    // ignore malformed messages
+                }
+            };
+
+            eventSource.onerror = () => {
+                eventSource?.close();
+                // Reconnect after 3 seconds on error
+                retryTimeout = setTimeout(connect, 3000);
+            };
+        }
+
+        connect();
+
+        return () => {
+            eventSource?.close();
+            clearTimeout(retryTimeout);
+        };
     }, []);
 
     return (
@@ -40,7 +59,9 @@ export default function TopBar({ onAddSong, onSearch, onMenuToggle }: TopBarProp
             {/* Center — Listener count */}
             <div className="glass-pill px-4 py-2 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse-live" />
-                <span className="text-sm font-semibold text-white">{listeners}</span>
+                <span className="text-sm font-semibold text-white">
+                    {listeners !== null ? listeners : "…"}
+                </span>
                 <span className="text-xs text-white/50 hidden sm:inline">on the highway</span>
             </div>
 

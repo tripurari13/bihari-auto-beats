@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server";
 import YouTube from "youtube-sr";
+import { SONGS } from "@/lib/mockData";
 
 export async function GET() {
     try {
-        // Fetch the user's specific playlist
         const playlist = await YouTube.getPlaylist("https://www.youtube.com/playlist?list=PLHKpZNim3NpU");
 
-        if (!playlist || !playlist.videos) {
-            return NextResponse.json({ error: "Playlist not found" }, { status: 404 });
+        if (!playlist || !playlist.videos || playlist.videos.length === 0) {
+            return NextResponse.json({ songs: SONGS });
         }
 
-        // Format the videos to match our Song interface
         const formattedSongs = playlist.videos.map((video) => {
             const playCount = Math.floor(Math.random() * 50000) + 5000;
             const likeCount = Math.floor(playCount * (Math.random() * 0.3 + 0.1));
@@ -22,7 +21,7 @@ export async function GET() {
                 thumbnail: video.thumbnail?.url || "/bg.png",
                 youtubeVideoId: video.id,
                 duration: video.durationFormatted,
-                durationSeconds: video.duration / 1000,
+                durationSeconds: video.duration ? video.duration / 1000 : 180,
                 category: "Bhojpuri Bangers",
                 playCount,
                 likeCount,
@@ -32,8 +31,7 @@ export async function GET() {
         });
 
         return NextResponse.json({ songs: formattedSongs });
-    } catch (error) {
-        console.error("Failed to fetch playlist:", error);
-        return NextResponse.json({ error: "Failed to fetch playlist" }, { status: 500 });
+    } catch {
+        return NextResponse.json({ songs: SONGS });
     }
 }
