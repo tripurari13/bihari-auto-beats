@@ -123,7 +123,7 @@ async function fetchPlaylistFromYouTube() {
     });
     const html = await res.text();
 
-    const match = html.match(/var ytInitialData = ({.*?});<\/script>/s);
+    const match = html.match(/var ytInitialData = ({[\s\S]*?});<\/script>/);
     if (!match) throw new Error("Could not find ytInitialData");
 
     const data = JSON.parse(match[1]);
