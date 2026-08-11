@@ -13,7 +13,9 @@
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "youtube-sr": "^4.3.12"
+    "youtube-sr": "^4.3.12",
+    "youtubei.js": "^17.2.0",
+    "ytpl": "^2.3.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
