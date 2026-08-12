@@ -127,7 +127,9 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                                         <div className="relative w-16 h-10 rounded-lg overflow-hidden flex-shrink-0">
                                             <img src={song.thumbnail} alt={song.title} className="w-full h-full object-cover" />
                                             <div className="absolute bottom-0.5 right-0.5 bg-black/70 px-1 rounded text-[8px] text-white font-mono">
-                                                {song.duration}
+                                                {song.duration && !song.duration.toLowerCase().includes("view") && /^\d+:\d+/.test(song.duration)
+                                                    ? song.duration
+                                                    : (song.durationSeconds ? `${Math.floor(song.durationSeconds / 60)}:${String(song.durationSeconds % 60).padStart(2, "0")}` : "3:00")}
                                             </div>
                                         </div>
                                         <div className="flex-1 min-w-0">

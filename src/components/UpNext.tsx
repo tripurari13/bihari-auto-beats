@@ -26,7 +26,11 @@ export default function UpNext() {
                             <p className="text-sm font-medium truncate">{song.title}</p>
                             <p className="text-xs text-muted truncate">{song.artist}</p>
                         </div>
-                        <span className="text-xs text-muted">{song.duration}</span>
+                        <span className="text-xs text-muted">
+                            {song.duration && !song.duration.toLowerCase().includes("view") && /^\d+:\d+/.test(song.duration)
+                                ? song.duration
+                                : (song.durationSeconds ? `${Math.floor(song.durationSeconds / 60)}:${String(song.durationSeconds % 60).padStart(2, "0")}` : "3:00")}
+                        </span>
                         <button
                             onClick={(e) => { e.stopPropagation(); removeFromQueue(i); }}
                             className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-500 transition-all text-sm p-1"

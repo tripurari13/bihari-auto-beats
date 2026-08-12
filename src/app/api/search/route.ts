@@ -18,14 +18,22 @@ export async function GET(request: Request) {
             const playCount = Math.floor(Math.random() * 50000) + 5000;
             const likeCount = Math.floor(playCount * (Math.random() * 0.3 + 0.1));
 
+            const durationSec = Math.round((video.duration || 0) / 1000) || 180;
+            const hrs = Math.floor(durationSec / 3600);
+            const mins = Math.floor((durationSec % 3600) / 60);
+            const secs = durationSec % 60;
+            const fallbackDuration = hrs > 0
+                ? `${hrs}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
+                : `${mins}:${String(secs).padStart(2, "0")}`;
+
             return {
                 id: `yt-${video.id}`,
                 title: video.title,
                 artist: video.channel?.name || "YouTube",
                 thumbnail: video.thumbnail?.url || "/bg.png",
                 youtubeVideoId: video.id,
-                duration: video.durationFormatted,
-                durationSeconds: video.duration / 1000,
+                duration: video.durationFormatted || fallbackDuration,
+                durationSeconds: durationSec,
                 category: "YouTube Search",
                 playCount,
                 likeCount,

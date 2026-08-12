@@ -11,7 +11,7 @@ declare global {
 }
 
 export default function YouTubePlayer() {
-    const { currentSong, isPlaying, volume, setProgress, nextSong, seekRequest, clearSeekRequest } = usePlayer();
+    const { currentSong, isPlaying, volume, setProgress, nextSong, seekRequest, clearSeekRequest, setCurrentSongDuration } = usePlayer();
     const playerRef = useRef<any>(null);
     const [isReady, setIsReady] = useState(false);
     const progressInterval = useRef<NodeJS.Timeout | null>(null);
@@ -43,6 +43,11 @@ export default function YouTubePlayer() {
                             // 0 = ended
                             if (event.data === 0) {
                                 nextSong();
+                            } else if (event.data === 1) {
+                                const d = event.target?.getDuration?.();
+                                if (d && d > 0) {
+                                    setCurrentSongDuration(d);
+                                }
                             }
                         },
                     },
@@ -57,7 +62,14 @@ export default function YouTubePlayer() {
                 events: {
                     onReady: () => setIsReady(true),
                     onStateChange: (event: any) => {
-                        if (event.data === 0) nextSong();
+                        if (event.data === 0) {
+                            nextSong();
+                        } else if (event.data === 1) {
+                            const d = event.target?.getDuration?.();
+                            if (d && d > 0) {
+                                setCurrentSongDuration(d);
+                            }
+                        }
                     },
                 },
             });
@@ -66,7 +78,7 @@ export default function YouTubePlayer() {
         return () => {
             if (progressInterval.current) clearInterval(progressInterval.current);
         };
-    }, [nextSong]);
+    }, [nextSong, setCurrentSongDuration]);
 
     // Handle song changes
     useEffect(() => {
@@ -92,6 +104,7 @@ export default function YouTubePlayer() {
                         const duration = playerRef.current.getDuration();
                         if (duration > 0) {
                             setProgress((time / duration) * 100);
+                            setCurrentSongDuration(duration);
                         }
                     }
                 }, 1000);
@@ -100,7 +113,7 @@ export default function YouTubePlayer() {
                 if (progressInterval.current) clearInterval(progressInterval.current);
             }
         }
-    }, [isPlaying, isReady, setProgress]);
+    }, [isPlaying, isReady, setProgress, setCurrentSongDuration]);
 
     // Handle volume
     useEffect(() => {
