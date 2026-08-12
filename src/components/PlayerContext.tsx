@@ -30,6 +30,7 @@ interface PlayerContextType extends PlayerState {
     toggleLike: (songId: string) => void;
     requestSeek: (progress: number) => void;
     clearSeekRequest: () => void;
+    setCurrentSongDuration: (seconds: number) => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | null>(null);
@@ -162,6 +163,32 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         setState((s) => ({ ...s, seekRequest: null }));
     }, []);
 
+    const setCurrentSongDuration = useCallback((seconds: number) => {
+        if (!seconds || isNaN(seconds) || seconds <= 0) return;
+        const rounded = Math.round(seconds);
+        const hrs = Math.floor(rounded / 3600);
+        const mins = Math.floor((rounded % 3600) / 60);
+        const secs = rounded % 60;
+        const formatted = hrs > 0
+            ? `${hrs}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
+            : `${mins}:${String(secs).padStart(2, "0")}`;
+
+        setState((s) => {
+            if (!s.currentSong) return s;
+            if (s.currentSong.durationSeconds === rounded && s.currentSong.duration === formatted) {
+                return s;
+            }
+            return {
+                ...s,
+                currentSong: {
+                    ...s.currentSong,
+                    durationSeconds: rounded,
+                    duration: formatted,
+                },
+            };
+        });
+    }, []);
+
     const cycleRepeat = useCallback(() => {
         setState((s) => {
             const modes: ("off" | "all" | "one")[] = ["off", "all", "one"];
@@ -191,7 +218,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }, []);
 
     return (
-        <PlayerContext.Provider value={{ ...state, playSong, togglePlay, nextSong, prevSong, setProgress, setVolume, toggleShuffle, cycleRepeat, toggleAutoMode, addToQueue, removeFromQueue, toggleLike, requestSeek, clearSeekRequest }}>
+        <PlayerContext.Provider value={{ ...state, playSong, togglePlay, nextSong, prevSong, setProgress, setVolume, toggleShuffle, cycleRepeat, toggleAutoMode, addToQueue, removeFromQueue, toggleLike, requestSeek, clearSeekRequest, setCurrentSongDuration }}>
             {children}
         </PlayerContext.Provider>
     );

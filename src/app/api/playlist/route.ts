@@ -36,37 +36,109 @@ interface LockupViewModel {
             image?: {
                 sources?: Array<{ url?: string }>;
             };
+            overlays?: Array<{
+                thumbnailBottomOverlayViewModel?: {
+                    badges?: Array<{
+                        thumbnailBadgeViewModel?: {
+                            text?: string;
+                            rendererContext?: {
+                                accessibilityContext?: {
+                                    label?: string;
+                                };
+                            };
+                        };
+                    }>;
+                };
+                thumbnailOverlayTimeStatusRenderer?: {
+                    text?: {
+                        simpleText?: string;
+                        runs?: Array<{ text?: string }>;
+                    };
+                };
+            }>;
         };
     };
 }
 
 function parseDurationToSeconds(durationStr: string): number {
-    // Parses strings like "3m", "12m", "1h 2m", "45s", "3:24" etc.
     if (!durationStr) return 180;
+    const clean = durationStr.trim();
 
-    // Try "Xm" or "Xh Ym" format
+    // Check "M:SS" or "H:MM:SS" format
+    const colonParts = clean.split(":").map(Number);
+    if (colonParts.length === 3 && !colonParts.some(isNaN)) {
+        return colonParts[0] * 3600 + colonParts[1] * 60 + colonParts[2];
+    }
+    if (colonParts.length === 2 && !colonParts.some(isNaN)) {
+        return colonParts[0] * 60 + colonParts[1];
+    }
+
+    // Try "Xh Ym Zs" or "X minutes, Y seconds" format
     let totalSeconds = 0;
-    const hourMatch = durationStr.match(/(\d+)\s*h/);
-    const minMatch = durationStr.match(/(\d+)\s*m/);
-    const secMatch = durationStr.match(/(\d+)\s*s/);
+    const hourMatch = clean.match(/(\d+)\s*(?:h|hr|hour|hours)/i);
+    const minMatch = clean.match(/(\d+)\s*(?:m|min|minute|minutes)/i);
+    const secMatch = clean.match(/(\d+)\s*(?:s|sec|second|seconds)/i);
 
     if (hourMatch) totalSeconds += parseInt(hourMatch[1]) * 3600;
     if (minMatch) totalSeconds += parseInt(minMatch[1]) * 60;
     if (secMatch) totalSeconds += parseInt(secMatch[1]);
 
-    if (totalSeconds > 0) return totalSeconds;
+    return totalSeconds > 0 ? totalSeconds : 180;
+}
 
-    // Try "M:SS" or "H:MM:SS" format
-    const parts = durationStr.split(":").map(Number);
-    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-    if (parts.length === 2) return parts[0] * 60 + parts[1];
+function formatDuration(seconds: number): string {
+    if (!seconds || isNaN(seconds) || seconds <= 0) return "3:00";
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    if (hrs > 0) {
+        return `${hrs}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    }
+    return `${mins}:${String(secs).padStart(2, "0")}`;
+}
 
-    return 180; // fallback
+function extractDurationString(item: LockupViewModel): string {
+    const overlays = item.contentImage?.thumbnailViewModel?.overlays || [];
+    for (const ov of overlays) {
+        const badges = ov.thumbnailBottomOverlayViewModel?.badges || [];
+        for (const b of badges) {
+            const badge = b.thumbnailBadgeViewModel;
+            if (badge?.text && !badge.text.toLowerCase().includes("view")) {
+                return badge.text;
+            }
+            if (badge?.rendererContext?.accessibilityContext?.label) {
+                const label = badge.rendererContext.accessibilityContext.label;
+                if (!label.toLowerCase().includes("view")) {
+                    return label;
+                }
+            }
+        }
+        const timeStatus = ov.thumbnailOverlayTimeStatusRenderer;
+        if (timeStatus?.text?.simpleText && !timeStatus.text.simpleText.toLowerCase().includes("view")) {
+            return timeStatus.text.simpleText;
+        }
+        if (timeStatus?.text?.runs?.[0]?.text && !timeStatus.text.runs[0].text.toLowerCase().includes("view")) {
+            return timeStatus.text.runs[0].text;
+        }
+    }
+    return "";
+}
+
+function parseViews(viewsStr?: string): number {
+    if (!viewsStr) return Math.floor(Math.random() * 50000) + 5000;
+    const match = viewsStr.match(/([\d.]+)\s*([KkMmBb])?/);
+    if (!match) return Math.floor(Math.random() * 50000) + 5000;
+    const num = parseFloat(match[1]);
+    const multiplier = match[2]?.toUpperCase();
+    if (multiplier === "B") return Math.round(num * 1000000000);
+    if (multiplier === "M") return Math.round(num * 1000000);
+    if (multiplier === "K") return Math.round(num * 1000);
+    return Math.round(num);
 }
 
 function formatSongs(items: LockupViewModel[]) {
     return items
-        .map((item, index) => {
+        .map((item) => {
             const videoId =
                 item.rendererContext?.commandContext?.onTap?.innertubeCommand
                     ?.watchEndpoint?.videoId;
@@ -82,18 +154,25 @@ function formatSongs(items: LockupViewModel[]) {
                     / - Topic$/,
                     ""
                 ) || "Unknown";
-            const durationStr =
-                metadataRows[1]?.metadataParts?.[0]?.text?.content || "";
+
+            const durationStr = extractDurationString(item);
+            const durationSeconds = parseDurationToSeconds(durationStr);
+            const formattedDuration = formatDuration(durationSeconds);
 
             const thumbnail =
                 item.contentImage?.thumbnailViewModel?.image?.sources?.[0]
                     ?.url ||
                 `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
-            const playCount = Math.floor(Math.random() * 50000) + 5000;
+            const viewsStr = metadataRows[1]?.metadataParts?.[0]?.text?.content;
+            const playCount = viewsStr && viewsStr.toLowerCase().includes("view")
+                ? parseViews(viewsStr)
+                : Math.floor(Math.random() * 50000) + 5000;
             const likeCount = Math.floor(
                 playCount * (Math.random() * 0.3 + 0.1)
             );
+
+            const addedAgo = metadataRows[1]?.metadataParts?.[1]?.text?.content || "Recently";
 
             return {
                 id: `yt-${videoId}`,
@@ -101,12 +180,12 @@ function formatSongs(items: LockupViewModel[]) {
                 artist,
                 thumbnail,
                 youtubeVideoId: videoId,
-                duration: durationStr || "3:00",
-                durationSeconds: parseDurationToSeconds(durationStr),
+                duration: formattedDuration,
+                durationSeconds,
                 category: "Bhojpuri Bangers",
                 playCount,
                 likeCount,
-                addedAgo: metadataRows[1]?.metadataParts?.[1]?.text?.content || "Recently",
+                addedAgo,
                 isLiked: false,
             };
         })

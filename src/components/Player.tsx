@@ -17,8 +17,28 @@ export default function Player() {
 
     if (!currentSong) return null;
 
-    const currentTime = Math.floor((progress / 100) * currentSong.durationSeconds);
-    const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    const formatTime = (seconds: number) => {
+        if (isNaN(seconds) || seconds < 0) return "0:00";
+        const rounded = Math.floor(seconds);
+        const hrs = Math.floor(rounded / 3600);
+        const mins = Math.floor((rounded % 3600) / 60);
+        const secs = rounded % 60;
+        if (hrs > 0) {
+            return `${hrs}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+        }
+        return `${mins}:${String(secs).padStart(2, "0")}`;
+    };
+
+    const totalSeconds = currentSong.durationSeconds || 180;
+    const currentTime = Math.floor((progress / 100) * totalSeconds);
+    const isDurationClean = Boolean(
+        currentSong.duration &&
+        !currentSong.duration.toLowerCase().includes("view") &&
+        /^\d+:\d+/.test(currentSong.duration)
+    );
+    const displayDuration = isDurationClean
+        ? currentSong.duration
+        : formatTime(totalSeconds);
 
     return (
         <div className="fixed bottom-0 left-0 right-0 z-50 safe-bottom">
@@ -54,7 +74,7 @@ export default function Player() {
 
                     {/* Time */}
                     <span className="text-[10px] text-white/40 font-mono hidden sm:block">
-                        {fmt(currentTime)} / {currentSong.duration}
+                        {formatTime(currentTime)} / {displayDuration}
                     </span>
 
                     {/* Controls */}
