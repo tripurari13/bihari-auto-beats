@@ -2,10 +2,16 @@
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from "react";
 import { Song, SONGS } from "@/lib/mockData";
 
+export type PlaylistType = "bihari" | "durgesh";
+
 interface PlayerState {
+    activePlaylist: PlaylistType;
     currentSong: Song | null;
     queue: Song[];
     allSongs: Song[];
+    bihariSongs: Song[];
+    durgeshSongs: Song[];
+    isLoadingPlaylist: boolean;
     isPlaying: boolean;
     progress: number;
     volume: number;
@@ -13,9 +19,14 @@ interface PlayerState {
     repeatMode: "off" | "all" | "one";
     isAutoMode: boolean;
     seekRequest: number | null;
+    isPlaylistModalOpen: boolean;
+    isMoodModalOpen: boolean;
+    hasSelectedMood: boolean;
 }
 
 interface PlayerContextType extends PlayerState {
+    setPlaylist: (type: PlaylistType, startPlaying?: boolean) => void;
+    selectMood: (type: PlaylistType) => void;
     playSong: (song: Song) => void;
     togglePlay: () => void;
     nextSong: () => void;
@@ -31,68 +42,170 @@ interface PlayerContextType extends PlayerState {
     requestSeek: (progress: number) => void;
     clearSeekRequest: () => void;
     setCurrentSongDuration: (seconds: number) => void;
+    openPlaylistModal: () => void;
+    closePlaylistModal: () => void;
+    togglePlaylistModal: () => void;
+    openMoodModal: () => void;
+    closeMoodModal: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | null>(null);
 
+function shuffleArray<T>(array: T[]): T[] {
+    const copy = [...array];
+    for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+}
+
 export function PlayerProvider({ children }: { children: ReactNode }) {
     const [state, setState] = useState<PlayerState>(() => {
-        const initialSongs = [...SONGS];
-        // Shuffle initial songs
-        for (let i = initialSongs.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [initialSongs[i], initialSongs[j]] = [initialSongs[j], initialSongs[i]];
-        }
+        const initialSongs = shuffleArray(SONGS);
         return {
-            currentSong: initialSongs[0],
+            activePlaylist: "bihari",
+            currentSong: initialSongs[0] || null,
             queue: initialSongs.slice(1, 11),
             allSongs: initialSongs,
-            isPlaying: false, // Disabled autoplay
+            bihariSongs: initialSongs,
+            durgeshSongs: [],
+            isLoadingPlaylist: false,
+            isPlaying: false,
             progress: 0,
             volume: 80,
             isShuffle: false,
             repeatMode: "off",
             isAutoMode: false,
             seekRequest: null,
+            isPlaylistModalOpen: false,
+            isMoodModalOpen: true, // Opens mood selector on initial visit
+            hasSelectedMood: false,
         };
     });
 
-    // Fetch real-time playlist on mount
+    // Fetch both playlists on mount
     useEffect(() => {
-        const fetchPlaylist = async () => {
+        let isMounted = true;
+
+        const loadPlaylists = async () => {
             try {
-                const res = await fetch("/api/playlist");
-                if (res.ok) {
-                    const data = await res.json();
+                // Fetch Bihari Playlist
+                const resBihari = await fetch("/api/playlist");
+                let loadedBihari: Song[] = [];
+                if (resBihari.ok) {
+                    const data = await resBihari.json();
                     if (data.songs && data.songs.length > 0) {
-                        const realSongs = [...data.songs];
-                        // Shuffle the entire array
-                        for (let i = realSongs.length - 1; i > 0; i--) {
-                            const j = Math.floor(Math.random() * (i + 1));
-                            [realSongs[i], realSongs[j]] = [realSongs[j], realSongs[i]];
-                        }
-                        const randomSong = realSongs[0];
-                        const newQueue = realSongs.slice(1, 11); // Next 10 songs
-                        setState((s) => ({ ...s, currentSong: randomSong, queue: newQueue, allSongs: realSongs, isPlaying: false }));
+                        loadedBihari = data.songs;
                     }
                 }
-            } catch (error) {
-                console.error("Failed to fetch real-time playlist", error);
-                // Fallback to mock data is already in initial state
+
+                // Fetch Durgesh Playlist
+                const resDurgesh = await fetch("/api/durgesh-playlist");
+                let loadedDurgesh: Song[] = [];
+                if (resDurgesh.ok) {
+                    const dataDurgesh = await resDurgesh.json();
+                    if (dataDurgesh.songs && dataDurgesh.songs.length > 0) {
+                        loadedDurgesh = dataDurgesh.songs;
+                    }
+                }
+
+                if (!isMounted) return;
+
+                setState((s) => {
+                    const bihari = loadedBihari.length > 0 ? loadedBihari : s.bihariSongs;
+                    const durgesh = loadedDurgesh.length > 0 ? loadedDurgesh : [];
+                    const activeList = s.activePlaylist === "durgesh" ? durgesh : bihari;
+                    const shuffled = shuffleArray(activeList.length > 0 ? activeList : s.allSongs);
+
+                    return {
+                        ...s,
+                        bihariSongs: bihari,
+                        durgeshSongs: durgesh,
+                        allSongs: activeList.length > 0 ? activeList : s.allSongs,
+                        currentSong: s.currentSong || shuffled[0] || null,
+                        queue: shuffled.slice(1, 11),
+                    };
+                });
+            } catch (err) {
+                console.error("Failed to load initial playlists", err);
             }
         };
 
-        fetchPlaylist();
+        loadPlaylists();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    // Switch between Bihari Auto Playlist and Durgesh Nai Playlist
+    const setPlaylist = useCallback((type: PlaylistType, startPlaying = false) => {
+        setState((s) => {
+            const targetSongs = type === "durgesh"
+                ? (s.durgeshSongs.length > 0 ? s.durgeshSongs : [])
+                : (s.bihariSongs.length > 0 ? s.bihariSongs : SONGS);
+
+            if (targetSongs.length === 0) {
+                return { ...s, activePlaylist: type };
+            }
+
+            const shuffled = shuffleArray(targetSongs);
+            const newSong = shuffled[0];
+            const newQueue = shuffled.slice(1, 11);
+
+            return {
+                ...s,
+                activePlaylist: type,
+                allSongs: targetSongs,
+                currentSong: newSong,
+                queue: newQueue,
+                isPlaying: startPlaying ? true : s.isPlaying,
+                progress: 0,
+            };
+        });
+    }, []);
+
+    // Select mood from the introductory modal and start playing
+    const selectMood = useCallback((type: PlaylistType) => {
+        setState((s) => {
+            const targetSongs = type === "durgesh"
+                ? (s.durgeshSongs.length > 0 ? s.durgeshSongs : [])
+                : (s.bihariSongs.length > 0 ? s.bihariSongs : SONGS);
+
+            const shuffled = targetSongs.length > 0 ? shuffleArray(targetSongs) : s.allSongs;
+            const newSong = shuffled[0] || null;
+            const newQueue = shuffled.slice(1, 11);
+
+            return {
+                ...s,
+                activePlaylist: type,
+                allSongs: targetSongs.length > 0 ? targetSongs : s.allSongs,
+                currentSong: newSong,
+                queue: newQueue,
+                isPlaying: true,
+                progress: 0,
+                isMoodModalOpen: false,
+                hasSelectedMood: true,
+            };
+        });
+    }, []);
+
+    const openMoodModal = useCallback(() => {
+        setState((s) => ({ ...s, isMoodModalOpen: true }));
+    }, []);
+
+    const closeMoodModal = useCallback(() => {
+        setState((s) => ({ ...s, isMoodModalOpen: false, hasSelectedMood: true }));
     }, []);
 
     const togglePlay = useCallback(() => {
         setState((s) => ({ ...s, isPlaying: !s.isPlaying }));
     }, []);
 
-    // Keyboard shortcuts
+    // Keyboard shortcut (Space)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Ignore if user is typing in an input or textarea
             if (
                 document.activeElement?.tagName === "INPUT" ||
                 document.activeElement?.tagName === "TEXTAREA"
@@ -101,7 +214,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             }
 
             if (e.code === "Space") {
-                e.preventDefault(); // Prevent scrolling
+                e.preventDefault();
                 togglePlay();
             }
         };
@@ -111,12 +224,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }, [togglePlay]);
 
     const playSong = useCallback((song: Song) => {
-        setState((s) => ({ ...s, currentSong: song, isPlaying: true, progress: 0 }));
+        setState((s) => ({
+            ...s,
+            currentSong: song,
+            isPlaying: true,
+            progress: 0,
+        }));
     }, []);
 
     const nextSong = useCallback(() => {
         setState((s) => {
-            if (s.queue.length === 0) return s;
+            if (s.queue.length === 0) {
+                if (s.allSongs.length > 0) {
+                    const next = s.allSongs[0];
+                    return { ...s, currentSong: next, progress: 0, isPlaying: true };
+                }
+                return s;
+            }
             const next = s.queue[0];
             const newQueue = s.queue.slice(1);
             if (s.currentSong) newQueue.push(s.currentSong);
@@ -143,7 +267,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
     const setVolume = useCallback((v: number) => setState((s) => ({ ...s, volume: v })), []);
 
-    // Shuffle now plays a random song immediately
     const toggleShuffle = useCallback(() => {
         setState((s) => {
             if (s.allSongs.length === 0) return s;
@@ -153,6 +276,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             return { ...s, currentSong: randomSong, queue: newQueue, isPlaying: true, progress: 0, isShuffle: true };
         });
     }, []);
+
     const toggleAutoMode = useCallback(() => setState((s) => ({ ...s, isAutoMode: !s.isAutoMode })), []);
 
     const requestSeek = useCallback((p: number) => {
@@ -161,6 +285,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
     const clearSeekRequest = useCallback(() => {
         setState((s) => ({ ...s, seekRequest: null }));
+    }, []);
+
+    const openPlaylistModal = useCallback(() => {
+        setState((s) => ({ ...s, isPlaylistModalOpen: true }));
+    }, []);
+
+    const closePlaylistModal = useCallback(() => {
+        setState((s) => ({ ...s, isPlaylistModalOpen: false }));
+    }, []);
+
+    const togglePlaylistModal = useCallback(() => {
+        setState((s) => ({ ...s, isPlaylistModalOpen: !s.isPlaylistModalOpen }));
     }, []);
 
     const setCurrentSongDuration = useCallback((seconds: number) => {
@@ -218,7 +354,33 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }, []);
 
     return (
-        <PlayerContext.Provider value={{ ...state, playSong, togglePlay, nextSong, prevSong, setProgress, setVolume, toggleShuffle, cycleRepeat, toggleAutoMode, addToQueue, removeFromQueue, toggleLike, requestSeek, clearSeekRequest, setCurrentSongDuration }}>
+        <PlayerContext.Provider
+            value={{
+                ...state,
+                setPlaylist,
+                selectMood,
+                playSong,
+                togglePlay,
+                nextSong,
+                prevSong,
+                setProgress,
+                setVolume,
+                toggleShuffle,
+                cycleRepeat,
+                toggleAutoMode,
+                addToQueue,
+                removeFromQueue,
+                toggleLike,
+                requestSeek,
+                clearSeekRequest,
+                setCurrentSongDuration,
+                openPlaylistModal,
+                closePlaylistModal,
+                togglePlaylistModal,
+                openMoodModal,
+                closeMoodModal,
+            }}
+        >
             {children}
         </PlayerContext.Provider>
     );
