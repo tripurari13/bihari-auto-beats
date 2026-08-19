@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import YouTube from "youtube-sr";
 import { Song } from "@/lib/mockData";
 import { ISHQ_FALLBACK_SONGS } from "@/lib/ishqData";
 
 const ISHQ_PLAYLIST_ID = "PLbL-XXtNCamuOpGTAu2IzyMfdl4Yd3jcH";
 const PLAYLIST_URL = `https://www.youtube.com/playlist?list=${ISHQ_PLAYLIST_ID}`;
 
-// In-memory cache: re-fetch at most once every 5 minutes
+// In-memory cache: re-fetch from YouTube at most once every 5 minutes
 let cachedSongs: Song[] | null = null;
 let cacheTimestamp = 0;
 const CACHE_DURATION_MS = 5 * 60 * 1000;
@@ -192,82 +191,33 @@ function formatLockupSongs(items: LockupViewModel[]): Song[] {
         .filter((s): s is Song => s !== null);
 }
 
-/**
- * Fetch ALL songs from YouTube playlist without capping at 100 songs.
- * Tries youtube-sr playlist fetching with full video resolution first,
- * then falls back to full HTML scraping if needed.
- */
-async function fetchAllPlaylistSongs(): Promise<Song[]> {
-    // Strategy 1: Use youtube-sr with full fetching
-    try {
-        const playlist = await YouTube.getPlaylist(PLAYLIST_URL, { fetchAll: true });
-        if (playlist) {
-            const fullPlaylist = await playlist.fetch(0); // fetch all videos
-            if (fullPlaylist && fullPlaylist.videos && fullPlaylist.videos.length > 0) {
-                const songs: Song[] = fullPlaylist.videos
-                    .filter((v) => !!v.id)
-                    .map((v) => {
-                        const playCount = Math.floor(Math.random() * 95000) + 25000;
-                        const likeCount = Math.floor(playCount * (Math.random() * 0.35 + 0.15));
-                        const durationSeconds = v.duration ? Math.round(v.duration / 1000) : 210;
-                        return {
-                            id: `ishq-${v.id}`,
-                            title: v.title ? v.title.replace(/\s*\(Official.*?\)/i, "").replace(/\s*\[Official.*?\]/i, "").trim() : "Romantic Song",
-                            artist: v.channel?.name ? v.channel.name.replace(/ - Topic$/, "") : "Ishq FM",
-                            thumbnail: v.thumbnail?.url || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
-                            youtubeVideoId: v.id!,
-                            duration: v.durationFormatted || formatDuration(durationSeconds),
-                            durationSeconds,
-                            category: "Ishq FM",
-                            playCount,
-                            likeCount,
-                            addedAgo: "Dil Se",
-                            isLiked: false,
-                        };
-                    });
+async function fetchPlaylistFromYouTube(): Promise<Song[]> {
+    const res = await fetch(PLAYLIST_URL, {
+        headers: {
+            "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        },
+        next: { revalidate: 0 },
+    });
+    const html = await res.text();
 
-                if (songs.length > 0) {
-                    return songs;
-                }
-            }
-        }
-    } catch {
-        // Fall through to Strategy 2
-    }
+    const match = html.match(/var ytInitialData = ({[\s\S]*?});<\/script>/);
+    if (!match) throw new Error("Could not find ytInitialData");
 
-    // Strategy 2: HTML scraping fallback
-    try {
-        const res = await fetch(PLAYLIST_URL, {
-            headers: {
-                "User-Agent":
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            },
-            next: { revalidate: 0 },
-        });
-        const html = await res.text();
+    const data = JSON.parse(match[1]);
 
-        const match = html.match(/var ytInitialData = ({[\s\S]*?});<\/script>/);
-        if (match) {
-            const data = JSON.parse(match[1]);
-            const items =
-                data.contents?.twoColumnBrowseResultsRenderer?.tabs?.[0]?.tabRenderer
-                    ?.content?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer
-                    ?.contents;
+    const items =
+        data.contents?.twoColumnBrowseResultsRenderer?.tabs?.[0]?.tabRenderer
+            ?.content?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer
+            ?.contents;
 
-            if (items && items.length > 0) {
-                const lockups = items
-                    .map((item: { lockupViewModel?: LockupViewModel }) => item.lockupViewModel)
-                    .filter(Boolean) as LockupViewModel[];
+    if (!items || items.length === 0) throw new Error("No items in playlist");
 
-                const songs = formatLockupSongs(lockups);
-                if (songs.length > 0) return songs;
-            }
-        }
-    } catch {
-        // Fall through to fallback
-    }
+    const lockups = items
+        .map((item: { lockupViewModel?: LockupViewModel }) => item.lockupViewModel)
+        .filter(Boolean) as LockupViewModel[];
 
-    return [];
+    return formatLockupSongs(lockups);
 }
 
 export const dynamic = "force-dynamic";
@@ -279,7 +229,7 @@ export async function GET() {
             return NextResponse.json({ songs: cachedSongs, count: cachedSongs.length });
         }
 
-        const songs = await fetchAllPlaylistSongs();
+        const songs = await fetchPlaylistFromYouTube();
 
         if (songs.length > 0) {
             cachedSongs = songs;

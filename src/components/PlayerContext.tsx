@@ -231,7 +231,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 return { ...s, activePlaylist: type };
             }
 
-            // Only pick new song if switching experience or starting playback
+            // If already on this playlist and we already have a song selected, don't interrupt it
+            if (s.activePlaylist === type && s.currentSong) {
+                return {
+                    ...s,
+                    activePlaylist: type,
+                    allSongs: targetSongs,
+                    isPlaying: startPlaying ? true : s.isPlaying,
+                };
+            }
+
+            // Only pick new song if actually switching to a different playlist
             const shuffled = shuffleArray(targetSongs);
             const newSong = shuffled[0];
             const newQueue = shuffled.slice(1, 11);
