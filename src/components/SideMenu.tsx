@@ -81,6 +81,24 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
                                 </span>
                                 {activePlaylist === "durgesh" && <span className="text-xs bg-saffron-400 text-black px-2 py-0.5 rounded-full font-bold">Active</span>}
                             </button>
+
+                            <button
+                                onClick={() => {
+                                    setPlaylist("ishq");
+                                    onClose();
+                                }}
+                                className={`p-3 rounded-2xl flex items-center justify-between transition-all ${
+                                    activePlaylist === "ishq"
+                                        ? "bg-gradient-to-r from-pink-500/20 to-purple-500/10 border border-pink-400/40 text-pink-400 font-bold"
+                                        : "bg-white/5 hover:bg-white/10 border border-white/5 text-white/80"
+                                }`}
+                            >
+                                <span className="flex items-center gap-2">
+                                    <span className="text-lg">❤️</span>
+                                    <span style={{ fontFamily: "'Tiro Devanagari Hindi', serif" }}>इश्क़ FM प्लेलिस्ट</span>
+                                </span>
+                                {activePlaylist === "ishq" && <span className="text-xs bg-pink-500 text-white px-2 py-0.5 rounded-full font-bold">Active</span>}
+                            </button>
                         </div>
 
                         {/* View All Songs button */}

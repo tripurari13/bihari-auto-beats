@@ -11,6 +11,7 @@ export default function PlaylistModal() {
         allSongs,
         bihariSongs,
         durgeshSongs,
+        ishqSongs,
         currentSong,
         isPlaying,
         playSong,
@@ -20,15 +21,21 @@ export default function PlaylistModal() {
 
     if (!isPlaylistModalOpen) return null;
 
-    const songs = allSongs.length > 0
-        ? allSongs
-        : (activePlaylist === "durgesh" ? durgeshSongs : bihariSongs);
+    let songs = allSongs;
+    if (activePlaylist === "durgesh") {
+        songs = durgeshSongs.length > 0 ? durgeshSongs : allSongs;
+    } else if (activePlaylist === "ishq") {
+        songs = ishqSongs.length > 0 ? ishqSongs : allSongs;
+    } else {
+        songs = bihariSongs.length > 0 ? bihariSongs : allSongs;
+    }
 
     const filteredSongs = songs.filter((s) =>
         s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.artist.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const isIshq = activePlaylist === "ishq";
     const isDurgesh = activePlaylist === "durgesh";
 
     return (
@@ -43,7 +50,9 @@ export default function PlaylistModal() {
             <div
                 className="relative z-10 w-full max-w-2xl max-h-[85vh] sm:max-h-[80vh] flex flex-col rounded-t-3xl sm:rounded-3xl border border-white/15 shadow-2xl overflow-hidden animate-slide-up-modal"
                 style={{
-                    background: isDurgesh
+                    background: isIshq
+                        ? "linear-gradient(180deg, rgba(23, 21, 42, 0.95) 0%, rgba(8, 7, 20, 0.98) 100%)"
+                        : isDurgesh
                         ? "linear-gradient(180deg, rgba(35, 20, 15, 0.92) 0%, rgba(15, 10, 10, 0.96) 100%)"
                         : "linear-gradient(180deg, rgba(20, 25, 35, 0.92) 0%, rgba(10, 12, 18, 0.96) 100%)",
                     backdropFilter: "blur(30px)",
@@ -56,16 +65,20 @@ export default function PlaylistModal() {
                         {/* Title in Hindi */}
                         <div>
                             <div className="flex items-center gap-2">
-                                <span className="text-2xl">{isDurgesh ? "💈" : "🛺"}</span>
+                                <span className="text-2xl">{isIshq ? "❤️" : isDurgesh ? "💈" : "🛺"}</span>
                                 <h2
                                     className="text-2xl sm:text-3xl font-black text-white drop-shadow-md"
                                     style={{ fontFamily: "'Tiro Devanagari Hindi', serif" }}
                                 >
-                                    {isDurgesh ? "दुर्गेश नाई प्लेलिस्ट" : "बिहारी ऑटो प्लेलिस्ट"}
+                                    {isIshq ? "इश्क़ FM प्लेलिस्ट" : isDurgesh ? "दुर्गेश नाई प्लेलिस्ट" : "बिहारी ऑटो प्लेलिस्ट"}
                                 </h2>
                             </div>
                             <p className="text-xs text-white/50 font-heading tracking-wider uppercase mt-0.5">
-                                {isDurgesh ? "Durgesh Nai Salon Hits • 90s Classics" : "Bihari Swag on Wheels • Bhojpuri Bangers"}
+                                {isIshq
+                                    ? "Ishq FM • Dil Se... Sirf Tumhare Liye"
+                                    : isDurgesh
+                                    ? "Durgesh Nai Salon Hits • 90s Classics"
+                                    : "Bihari Swag on Wheels • Bhojpuri Bangers"}
                             </p>
                         </div>
 
@@ -82,27 +95,37 @@ export default function PlaylistModal() {
                         </button>
                     </div>
 
-                    {/* Playlist Switcher Pills inside Modal (Clean, no counts) */}
-                    <div className="flex items-center gap-2 bg-black/40 p-1 rounded-2xl border border-white/10">
+                    {/* Playlist Switcher Pills inside Modal */}
+                    <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-2xl border border-white/10">
                         <button
                             onClick={() => setPlaylist("bihari")}
-                            className={`flex-1 py-2 px-3 rounded-xl text-xs sm:text-sm font-heading font-bold transition-all duration-300 flex items-center justify-center gap-1.5 ${
-                                !isDurgesh
+                            className={`flex-1 py-2 px-2 sm:px-3 rounded-xl text-xs font-heading font-bold transition-all duration-300 flex items-center justify-center gap-1 ${
+                                activePlaylist === "bihari"
                                     ? "bg-gradient-to-r from-amber-500 to-saffron-500 text-black shadow-md shadow-amber-500/20"
                                     : "text-white/60 hover:text-white"
                             }`}
                         >
-                            🛺 बिहारी ऑटो
+                            🛺 ऑटो
                         </button>
                         <button
                             onClick={() => setPlaylist("durgesh")}
-                            className={`flex-1 py-2 px-3 rounded-xl text-xs sm:text-sm font-heading font-bold transition-all duration-300 flex items-center justify-center gap-1.5 ${
-                                isDurgesh
-                                    ? "bg-gradient-to-r from-amber-500 to-saffron-500 text-black shadow-md shadow-amber-500/20"
+                            className={`flex-1 py-2 px-2 sm:px-3 rounded-xl text-xs font-heading font-bold transition-all duration-300 flex items-center justify-center gap-1 ${
+                                activePlaylist === "durgesh"
+                                    ? "bg-gradient-to-r from-amber-400 to-yellow-500 text-black shadow-md shadow-amber-400/20"
                                     : "text-white/60 hover:text-white"
                             }`}
                         >
-                            💈 दुर्गेश नाई
+                            💈 दुर्गेश
+                        </button>
+                        <button
+                            onClick={() => setPlaylist("ishq")}
+                            className={`flex-1 py-2 px-2 sm:px-3 rounded-xl text-xs font-heading font-bold transition-all duration-300 flex items-center justify-center gap-1 ${
+                                activePlaylist === "ishq"
+                                    ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md shadow-pink-500/30"
+                                    : "text-white/60 hover:text-white"
+                            }`}
+                        >
+                            ❤️ इश्क़ FM
                         </button>
                     </div>
 
@@ -127,7 +150,7 @@ export default function PlaylistModal() {
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="गाना या गायक खोजें... / Search songs..."
-                            className="w-full bg-white/5 border border-white/10 focus:border-saffron-400/50 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-white/40 outline-none transition-all"
+                            className="w-full bg-white/5 border border-white/10 focus:border-pink-400/50 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-white/40 outline-none transition-all"
                         />
                         {searchQuery && (
                             <button
@@ -140,91 +163,77 @@ export default function PlaylistModal() {
                     </div>
                 </div>
 
-                {/* Song List (Scrollable) */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-2">
-                    {filteredSongs.length === 0 ? (
-                        <div className="py-12 text-center text-white/40">
-                            <span className="text-3xl block mb-2">🔍</span>
-                            <p className="text-sm font-medium">कोई गाना नहीं मिला</p>
-                        </div>
-                    ) : (
+                {/* Song List */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-1.5 custom-scrollbar">
+                    {filteredSongs.length > 0 ? (
                         filteredSongs.map((song, index) => {
                             const isCurrent = currentSong?.id === song.id;
                             return (
                                 <div
                                     key={song.id}
-                                    onClick={() => {
-                                        playSong(song);
-                                        closePlaylistModal();
-                                    }}
-                                    className={`group flex items-center gap-3.5 p-3 rounded-2xl cursor-pointer transition-all duration-200 ${
+                                    onClick={() => playSong(song)}
+                                    className={`group flex items-center justify-between p-3 rounded-2xl cursor-pointer transition-all duration-200 ${
                                         isCurrent
-                                            ? "bg-gradient-to-r from-amber-500/20 to-saffron-500/10 border border-saffron-400/40 shadow-lg shadow-saffron-500/10"
-                                            : "bg-white/[0.04] hover:bg-white/[0.08] border border-white/5"
+                                            ? isIshq
+                                                ? "bg-pink-500/20 border border-pink-400/40 shadow-md shadow-pink-500/10"
+                                                : isDurgesh
+                                                ? "bg-amber-500/20 border border-amber-400/40"
+                                                : "bg-saffron-500/20 border border-saffron-400/40"
+                                            : "hover:bg-white/5 border border-transparent"
                                     }`}
                                 >
-                                    {/* Song Index or Playing Animation */}
-                                    <div className="w-7 text-center flex-shrink-0 flex items-center justify-center">
-                                        {isCurrent && isPlaying ? (
-                                            <div className="flex items-end gap-0.5 h-4">
-                                                <span className="w-1 bg-saffron-400 rounded-full animate-[pulse_0.6s_ease-in-out_infinite] h-full" />
-                                                <span className="w-1 bg-saffron-400 rounded-full animate-[pulse_0.4s_ease-in-out_infinite] h-2/3" />
-                                                <span className="w-1 bg-saffron-400 rounded-full animate-[pulse_0.8s_ease-in-out_infinite] h-4/5" />
-                                            </div>
-                                        ) : (
-                                            <span className={`text-xs font-mono font-semibold ${isCurrent ? "text-saffron-400" : "text-white/30 group-hover:text-white/70"}`}>
-                                                {index + 1}
-                                            </span>
-                                        )}
-                                    </div>
+                                    <div className="flex items-center gap-3.5 min-w-0">
+                                        {/* Number or Playing indicator */}
+                                        <div className="w-6 text-center text-xs font-mono text-white/40 group-hover:text-white">
+                                            {isCurrent && isPlaying ? (
+                                                <span className="text-pink-400 font-bold">▶</span>
+                                            ) : (
+                                                index + 1
+                                            )}
+                                        </div>
 
-                                    {/* Thumbnail */}
-                                    <div className="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 shadow-md">
-                                        <img
-                                            src={song.thumbnail}
-                                            alt={song.title}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                            loading="lazy"
-                                        />
-                                        {isCurrent && (
-                                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                                <span className="text-saffron-400 text-sm">▶</span>
-                                            </div>
-                                        )}
-                                    </div>
+                                        {/* Artwork */}
+                                        <div className="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 shadow-md">
+                                            <img
+                                                src={song.thumbnail}
+                                                alt={song.title}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
 
-                                    {/* Song Title & Artist */}
-                                    <div className="flex-1 min-w-0">
-                                        <p
-                                            className={`text-sm font-semibold truncate ${
-                                                isCurrent ? "text-saffron-400 font-bold" : "text-white group-hover:text-white"
-                                            }`}
-                                        >
-                                            {song.title}
-                                        </p>
-                                        <p className="text-xs text-white/50 truncate mt-0.5">
-                                            {song.artist}
-                                        </p>
+                                        {/* Title & Artist */}
+                                        <div className="min-w-0">
+                                            <p
+                                                className={`text-sm font-semibold truncate ${
+                                                    isCurrent
+                                                        ? isIshq
+                                                            ? "text-pink-300"
+                                                            : isDurgesh
+                                                            ? "text-amber-300"
+                                                            : "text-saffron-400"
+                                                        : "text-white group-hover:text-pink-200"
+                                                }`}
+                                            >
+                                                {song.title}
+                                            </p>
+                                            <p className="text-xs text-white/50 truncate">
+                                                {song.artist}
+                                            </p>
+                                        </div>
                                     </div>
 
                                     {/* Duration */}
-                                    <span className="text-xs text-white/40 font-mono flex-shrink-0">
+                                    <span className="text-xs font-mono text-white/40 flex-shrink-0 ml-3">
                                         {song.duration}
                                     </span>
                                 </div>
                             );
                         })
+                    ) : (
+                        <div className="text-center py-12 text-white/40 text-sm">
+                            कोई गाना नहीं मिला / No songs found
+                        </div>
                     )}
-                </div>
-
-                {/* Footer Info */}
-                <div className="px-6 py-3 border-t border-white/10 bg-black/30 flex items-center justify-end text-xs text-white/40 font-mono">
-                    <button
-                        onClick={closePlaylistModal}
-                        className="text-saffron-400 hover:underline font-semibold"
-                    >
-                        बंद करें ✕
-                    </button>
                 </div>
             </div>
         </div>

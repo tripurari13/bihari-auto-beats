@@ -84,10 +84,16 @@ export default function TopBar({ onSearch }: TopBarProps) {
             <div className="flex items-center gap-2 pointer-events-auto">
                 <button
                     onClick={openMoodModal}
-                    className="glass-pill px-3.5 py-2 flex items-center gap-1.5 text-xs font-heading font-semibold text-white/90 hover:text-amber-400 transition-colors shadow-md"
+                    className="glass-pill px-3.5 py-2 flex items-center gap-1.5 text-xs font-heading font-semibold text-white/90 hover:text-pink-400 transition-colors shadow-md"
                     title="मूड बदलें / Switch Vibe"
                 >
-                    <span>{activePlaylist === "durgesh" ? "💈 दुर्गेश नाई" : "🛺 बिहारी ऑटो"}</span>
+                    <span>
+                        {activePlaylist === "ishq"
+                            ? "❤️ इश्क़ FM"
+                            : activePlaylist === "durgesh"
+                            ? "💈 दुर्गेश नाई"
+                            : "🛺 बिहारी ऑटो"}
+                    </span>
                     <span className="text-[10px] text-white/40">⇄</span>
                 </button>
 
