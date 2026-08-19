@@ -22,6 +22,7 @@ function IshqFMContent() {
   const {
     currentSong,
     isPlaying,
+    activePlaylist,
     togglePlay,
     playSong,
     ishqSongs,
@@ -48,8 +49,10 @@ function IshqFMContent() {
 
   // On page entry, ensure active playlist is Ishq FM
   useEffect(() => {
-    setPlaylist("ishq");
-  }, [setPlaylist]);
+    if (activePlaylist !== "ishq") {
+      setPlaylist("ishq");
+    }
+  }, [setPlaylist, activePlaylist]);
 
   // Rotate quotes
   useEffect(() => {

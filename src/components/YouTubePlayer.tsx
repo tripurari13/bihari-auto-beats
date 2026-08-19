@@ -28,9 +28,8 @@ export default function YouTubePlayer() {
     const lastVideoIdRef = useRef<string | null>(null);
     const [isReady, setIsReady] = useState(false);
     const progressInterval = useRef<NodeJS.Timeout | null>(null);
-    const errorSkipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Initialize YouTube IFrame API safely with visible dimensions in off-screen container to satisfy YouTube embed policies
+    // Initialize YouTube IFrame API safely
     useEffect(() => {
         let isMounted = true;
 
@@ -73,10 +72,6 @@ export default function YouTubePlayer() {
                         // 1 = PLAYING
                         if (event.data === 1) {
                             setIsBuffering(false);
-                            if (errorSkipTimeoutRef.current) {
-                                clearTimeout(errorSkipTimeoutRef.current);
-                                errorSkipTimeoutRef.current = null;
-                            }
                             const d = event.target?.getDuration?.();
                             if (d && d > 0) {
                                 setCurrentSongDuration(d);
@@ -90,23 +85,19 @@ export default function YouTubePlayer() {
                         else if (event.data === 2) {
                             setIsBuffering(false);
                         }
-                        // 0 = ENDED
+                        // 0 = ENDED (song finished naturally)
                         else if (event.data === 0) {
                             setIsBuffering(false);
                             nextSong();
                         }
                     },
                     onError: (event: any) => {
-                        // 150 / 101: video embedding restricted by owner
-                        // 100: not found or removed
-                        console.warn("YouTube player embed restricted (Error Code:", event.data, ")");
+                        // 150 or 101: video embedding restricted by owner
+                        // 100: not found/removed
+                        console.warn("YouTube embed restricted (Code:", event.data, ") - Tuning into next track instantly");
                         setIsBuffering(false);
-
-                        // Clear any pending timeout and smoothly move to next track
-                        if (errorSkipTimeoutRef.current) clearTimeout(errorSkipTimeoutRef.current);
-                        errorSkipTimeoutRef.current = setTimeout(() => {
-                            nextSong();
-                        }, 1200);
+                        // Instantly auto-tune to the next track in playlist so user never waits
+                        nextSong();
                     },
                 },
             });
@@ -127,7 +118,6 @@ export default function YouTubePlayer() {
 
         return () => {
             isMounted = false;
-            if (errorSkipTimeoutRef.current) clearTimeout(errorSkipTimeoutRef.current);
             if (progressInterval.current) clearInterval(progressInterval.current);
             if (playerRef.current && typeof playerRef.current.destroy === "function") {
                 try {
