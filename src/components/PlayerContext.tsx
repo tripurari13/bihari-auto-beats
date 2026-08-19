@@ -1,8 +1,18 @@
 "use client";
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from "react";
 import { Song, SONGS } from "@/lib/mockData";
+import { ISHQ_FALLBACK_SONGS } from "@/lib/ishqData";
 
-export type PlaylistType = "bihari" | "durgesh";
+export type PlaylistType = "bihari" | "durgesh" | "ishq";
+
+export interface DedicationItem {
+    id: string;
+    songTitle: string;
+    artist: string;
+    toName: string;
+    message: string;
+    date: string;
+}
 
 interface PlayerState {
     activePlaylist: PlaylistType;
@@ -11,6 +21,7 @@ interface PlayerState {
     allSongs: Song[];
     bihariSongs: Song[];
     durgeshSongs: Song[];
+    ishqSongs: Song[];
     isLoadingPlaylist: boolean;
     isPlaying: boolean;
     progress: number;
@@ -22,9 +33,16 @@ interface PlayerState {
     isPlaylistModalOpen: boolean;
     isMoodModalOpen: boolean;
     hasSelectedMood: boolean;
+    likedSongIds: string[];
+    recentlyPlayed: Song[];
+    dedications: DedicationItem[];
+    activeIshqMood: string | null;
+    activeIshqStation: string | null;
+    isBuffering: boolean;
 }
 
 interface PlayerContextType extends PlayerState {
+    setIsBuffering: (b: boolean) => void;
     setPlaylist: (type: PlaylistType, startPlaying?: boolean) => void;
     selectMood: (type: PlaylistType) => void;
     playSong: (song: Song) => void;
@@ -47,6 +65,9 @@ interface PlayerContextType extends PlayerState {
     togglePlaylistModal: () => void;
     openMoodModal: () => void;
     closeMoodModal: () => void;
+    playIshqStation: (stationId: string) => void;
+    filterIshqMood: (moodId: string) => void;
+    addDedication: (dedication: Omit<DedicationItem, "id" | "date">) => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | null>(null);
@@ -70,6 +91,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             allSongs: initialSongs,
             bihariSongs: initialSongs,
             durgeshSongs: [],
+            ishqSongs: ISHQ_FALLBACK_SONGS,
             isLoadingPlaylist: false,
             isPlaying: false,
             progress: 0,
@@ -81,10 +103,34 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             isPlaylistModalOpen: false,
             isMoodModalOpen: true, // Opens mood selector on initial visit
             hasSelectedMood: false,
+            likedSongIds: [],
+            recentlyPlayed: [],
+            dedications: [],
+            activeIshqMood: null,
+            activeIshqStation: null,
+            isBuffering: false,
         };
     });
 
-    // Fetch both playlists on mount
+    // Load LocalStorage persisted data (My Ishq) on client mount
+    useEffect(() => {
+        try {
+            const savedLikes = localStorage.getItem("ishq_liked_songs");
+            const savedRecent = localStorage.getItem("ishq_recently_played");
+            const savedDedications = localStorage.getItem("ishq_dedications");
+
+            setState((s) => ({
+                ...s,
+                likedSongIds: savedLikes ? JSON.parse(savedLikes) : [],
+                recentlyPlayed: savedRecent ? JSON.parse(savedRecent) : [],
+                dedications: savedDedications ? JSON.parse(savedDedications) : [],
+            }));
+        } catch {
+            // Ignore storage errors in private browsing
+        }
+    }, []);
+
+    // Fetch all 3 playlists on mount
     useEffect(() => {
         let isMounted = true;
 
@@ -110,25 +156,41 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                     }
                 }
 
+                // Fetch Ishq FM Playlist (>100 songs support)
+                const resIshq = await fetch("/api/ishq-playlist");
+                let loadedIshq: Song[] = [];
+                if (resIshq.ok) {
+                    const dataIshq = await resIshq.json();
+                    if (dataIshq.songs && dataIshq.songs.length > 0) {
+                        loadedIshq = dataIshq.songs;
+                    }
+                }
+
                 if (!isMounted) return;
 
                 setState((s) => {
                     const bihari = loadedBihari.length > 0 ? loadedBihari : s.bihariSongs;
                     const durgesh = loadedDurgesh.length > 0 ? loadedDurgesh : [];
-                    const activeList = s.activePlaylist === "durgesh" ? durgesh : bihari;
+                    const ishq = loadedIshq.length > 0 ? loadedIshq : (s.ishqSongs.length > 0 ? s.ishqSongs : ISHQ_FALLBACK_SONGS);
+
+                    let activeList = bihari;
+                    if (s.activePlaylist === "durgesh") activeList = durgesh.length > 0 ? durgesh : bihari;
+                    if (s.activePlaylist === "ishq") activeList = ishq.length > 0 ? ishq : bihari;
+
                     const shuffled = shuffleArray(activeList.length > 0 ? activeList : s.allSongs);
 
                     return {
                         ...s,
                         bihariSongs: bihari,
                         durgeshSongs: durgesh,
+                        ishqSongs: ishq,
                         allSongs: activeList.length > 0 ? activeList : s.allSongs,
                         currentSong: s.currentSong || shuffled[0] || null,
-                        queue: shuffled.slice(1, 11),
+                        queue: s.queue.length > 0 ? s.queue : shuffled.slice(1, 11),
                     };
                 });
             } catch (err) {
-                console.error("Failed to load initial playlists", err);
+                console.error("Failed to load playlists", err);
             }
         };
 
@@ -139,17 +201,37 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         };
     }, []);
 
-    // Switch between Bihari Auto Playlist and Durgesh Nai Playlist
+    // Track recently played in state & localStorage
+    const recordRecentlyPlayed = useCallback((song: Song) => {
+        setState((s) => {
+            const filtered = s.recentlyPlayed.filter((item) => item.id !== song.id);
+            const updated = [song, ...filtered].slice(0, 15);
+            try {
+                localStorage.setItem("ishq_recently_played", JSON.stringify(updated));
+            } catch {
+                // Ignore storage errors
+            }
+            return { ...s, recentlyPlayed: updated };
+        });
+    }, []);
+
+    // Switch between Bihari Auto Playlist, Durgesh Nai, and Ishq FM
     const setPlaylist = useCallback((type: PlaylistType, startPlaying = false) => {
         setState((s) => {
-            const targetSongs = type === "durgesh"
-                ? (s.durgeshSongs.length > 0 ? s.durgeshSongs : [])
-                : (s.bihariSongs.length > 0 ? s.bihariSongs : SONGS);
+            let targetSongs: Song[] = [];
+            if (type === "durgesh") {
+                targetSongs = s.durgeshSongs.length > 0 ? s.durgeshSongs : [];
+            } else if (type === "ishq") {
+                targetSongs = s.ishqSongs.length > 0 ? s.ishqSongs : ISHQ_FALLBACK_SONGS;
+            } else {
+                targetSongs = s.bihariSongs.length > 0 ? s.bihariSongs : SONGS;
+            }
 
             if (targetSongs.length === 0) {
                 return { ...s, activePlaylist: type };
             }
 
+            // Only pick new song if switching experience or starting playback
             const shuffled = shuffleArray(targetSongs);
             const newSong = shuffled[0];
             const newQueue = shuffled.slice(1, 11);
@@ -169,9 +251,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     // Select mood from the introductory modal and start playing
     const selectMood = useCallback((type: PlaylistType) => {
         setState((s) => {
-            const targetSongs = type === "durgesh"
-                ? (s.durgeshSongs.length > 0 ? s.durgeshSongs : [])
-                : (s.bihariSongs.length > 0 ? s.bihariSongs : SONGS);
+            let targetSongs: Song[] = [];
+            if (type === "durgesh") {
+                targetSongs = s.durgeshSongs.length > 0 ? s.durgeshSongs : [];
+            } else if (type === "ishq") {
+                targetSongs = s.ishqSongs.length > 0 ? s.ishqSongs : ISHQ_FALLBACK_SONGS;
+            } else {
+                targetSongs = s.bihariSongs.length > 0 ? s.bihariSongs : SONGS;
+            }
 
             const shuffled = targetSongs.length > 0 ? shuffleArray(targetSongs) : s.allSongs;
             const newSong = shuffled[0] || null;
@@ -203,34 +290,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         setState((s) => ({ ...s, isPlaying: !s.isPlaying }));
     }, []);
 
-    // Keyboard shortcut (Space)
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (
-                document.activeElement?.tagName === "INPUT" ||
-                document.activeElement?.tagName === "TEXTAREA"
-            ) {
-                return;
-            }
-
-            if (e.code === "Space") {
-                e.preventDefault();
-                togglePlay();
-            }
-        };
-
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [togglePlay]);
-
+    // Play a specific song
     const playSong = useCallback((song: Song) => {
+        recordRecentlyPlayed(song);
         setState((s) => ({
             ...s,
             currentSong: song,
             isPlaying: true,
             progress: 0,
         }));
-    }, []);
+    }, [recordRecentlyPlayed]);
 
     const nextSong = useCallback(() => {
         setState((s) => {
@@ -342,21 +411,132 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const toggleLike = useCallback((songId: string) => {
-        setState((s) => ({
-            ...s,
-            currentSong: s.currentSong?.id === songId
-                ? { ...s.currentSong, isLiked: !s.currentSong.isLiked, likeCount: s.currentSong.isLiked ? s.currentSong.likeCount - 1 : s.currentSong.likeCount + 1 }
-                : s.currentSong,
-            queue: s.queue.map((song) =>
-                song.id === songId ? { ...song, isLiked: !song.isLiked, likeCount: song.isLiked ? song.likeCount - 1 : song.likeCount + 1 } : song
-            ),
-        }));
+        setState((s) => {
+            const isCurrentlyLiked = s.likedSongIds.includes(songId);
+            const newLikedIds = isCurrentlyLiked
+                ? s.likedSongIds.filter((id) => id !== songId)
+                : [...s.likedSongIds, songId];
+
+            try {
+                localStorage.setItem("ishq_liked_songs", JSON.stringify(newLikedIds));
+            } catch {
+                // Ignore storage errors
+            }
+
+            return {
+                ...s,
+                likedSongIds: newLikedIds,
+                currentSong: s.currentSong?.id === songId
+                    ? {
+                          ...s.currentSong,
+                          isLiked: !isCurrentlyLiked,
+                          likeCount: isCurrentlyLiked ? s.currentSong.likeCount - 1 : s.currentSong.likeCount + 1,
+                      }
+                    : s.currentSong,
+                queue: s.queue.map((song) =>
+                    song.id === songId
+                        ? {
+                              ...song,
+                              isLiked: !isCurrentlyLiked,
+                              likeCount: isCurrentlyLiked ? song.likeCount - 1 : song.likeCount + 1,
+                          }
+                        : song
+                ),
+            };
+        });
+    }, []);
+
+    // Filter by Ishq FM Mood (e.g. In love, 2 AM, Heartbroken)
+    const filterIshqMood = useCallback((moodId: string) => {
+        setState((s) => {
+            const sourceSongs = s.ishqSongs.length > 0 ? s.ishqSongs : ISHQ_FALLBACK_SONGS;
+            const shuffled = shuffleArray(sourceSongs);
+            const newSong = shuffled[0] || null;
+            const newQueue = shuffled.slice(1, 15);
+
+            return {
+                ...s,
+                activePlaylist: "ishq",
+                activeIshqMood: moodId,
+                activeIshqStation: null,
+                allSongs: sourceSongs,
+                currentSong: newSong,
+                queue: newQueue,
+                isPlaying: true,
+                progress: 0,
+            };
+        });
+    }, []);
+
+    // Play an Ishq FM Station (e.g. Arijit Special, Late Night, 90s Love)
+    const playIshqStation = useCallback((stationId: string) => {
+        setState((s) => {
+            const sourceSongs = s.ishqSongs.length > 0 ? s.ishqSongs : ISHQ_FALLBACK_SONGS;
+            const shuffled = shuffleArray(sourceSongs);
+            const newSong = shuffled[0] || null;
+            const newQueue = shuffled.slice(1, 15);
+
+            return {
+                ...s,
+                activePlaylist: "ishq",
+                activeIshqStation: stationId,
+                activeIshqMood: null,
+                allSongs: sourceSongs,
+                currentSong: newSong,
+                queue: newQueue,
+                isPlaying: true,
+                progress: 0,
+            };
+        });
+    }, []);
+
+    // Add user song dedication
+    const addDedication = useCallback((dedication: Omit<DedicationItem, "id" | "date">) => {
+        setState((s) => {
+            const newItem: DedicationItem = {
+                ...dedication,
+                id: `ded-${Date.now()}`,
+                date: new Date().toLocaleDateString("en-IN", { month: "short", day: "numeric" }),
+            };
+            const updated = [newItem, ...s.dedications];
+            try {
+                localStorage.setItem("ishq_dedications", JSON.stringify(updated));
+            } catch {
+                // Ignore storage errors
+            }
+            return { ...s, dedications: updated };
+        });
+    }, []);
+
+    // Keyboard shortcut (Space)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (
+                document.activeElement?.tagName === "INPUT" ||
+                document.activeElement?.tagName === "TEXTAREA"
+            ) {
+                return;
+            }
+
+            if (e.code === "Space") {
+                e.preventDefault();
+                togglePlay();
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [togglePlay]);
+
+    const setIsBuffering = useCallback((b: boolean) => {
+        setState((s) => ({ ...s, isBuffering: b }));
     }, []);
 
     return (
         <PlayerContext.Provider
             value={{
                 ...state,
+                setIsBuffering,
                 setPlaylist,
                 selectMood,
                 playSong,
@@ -379,6 +559,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
                 togglePlaylistModal,
                 openMoodModal,
                 closeMoodModal,
+                playIshqStation,
+                filterIshqMood,
+                addDedication,
             }}
         >
             {children}
